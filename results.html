@@ -664,15 +664,15 @@ function renderTiming(dist) {
     const pct  = (v / total * 100).toFixed(0);
     const item = document.createElement('div');
     item.style.cssText = 'display:flex;align-items:center;gap:10px;';
-    item.innerHTML = \`
-      <span style="font-size:18px;width:26px;text-align:center;flex-shrink:0">\${meta.icon}</span>
-      <span style="font-size:12px;font-weight:700;color:#1a2744;min-width:100px;flex-shrink:0">\${k}</span>
-      <div style="flex:1;height:20px;background:#e8f4fd;border-radius:10px;overflow:hidden;">
-        <div style="height:100%;width:0%;background:\${meta.color};border-radius:10px;transition:width 1s ease;"
-             data-w="\${pct}%"></div>
-      </div>
-      <span style="font-size:12px;font-weight:900;color:\${meta.color};min-width:42px;text-align:right">\${pct}% <small style="font-weight:400;color:#8E9BAE">(\${v}명)</small></span>
-    \`;
+    item.innerHTML = ''
+      + '<span style="font-size:18px;width:26px;text-align:center;flex-shrink:0">'+meta.icon+'</span>'
+      + '<span style="font-size:12px;font-weight:700;color:#1a2744;min-width:100px;flex-shrink:0">'+k+'</span>'
+      + '<div style="flex:1;height:20px;background:#e8f4fd;border-radius:10px;overflow:hidden;">'
+      +   '<div style="height:100%;width:0%;background:'+meta.color+';border-radius:10px;transition:width 1s ease;" data-w="'+pct+'%"></div>'
+      + '</div>'
+      + '<span style="font-size:12px;font-weight:900;color:'+meta.color+';min-width:42px;text-align:right">'+pct+'% <small style="font-weight:400;color:#8E9BAE">('+v+'명)</small></span>';
+
+
     wrap.appendChild(item);
   });
   // 애니메이션
