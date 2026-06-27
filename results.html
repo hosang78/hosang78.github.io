@@ -162,7 +162,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 
 /* Vis-network 컨테이너 */
 #commentNetwork{
-  width:100%;height:340px;
+  width:100%;height:440px;
   border:2px solid var(--pale);border-radius:12px;
   background:linear-gradient(135deg,#f8fbff,#eef7ff);
 }
@@ -641,16 +641,45 @@ function renderGauge(temp, fill) {
 // ── 활용 시기 ──────────────────────────────────
 function renderTiming(dist) {
   destroyChart('timingChart');
-  const labels = Object.keys(dist);
-  const data   = Object.values(dist);
-  const colorPalette = ['#0068B7','#00A0E9','#A39161','#9FD9F6','#5a7a9a','#004098'];
-  charts.timingChart = new Chart(document.getElementById('timingChart'), {
-    type:'polarArea',
-    data:{ labels, datasets:[{ data, backgroundColor: colorPalette.map(c => c+'cc'), borderColor:'white', borderWidth:2 }] },
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ position:'bottom', labels:{ font:{size:11}, padding:8, boxWidth:12 } } },
-    }
+  const TIMING_META = {
+    '오늘 당장!':       { icon:'⚡', color:'#0068B7' },
+    '이번 주 안에':     { icon:'📅', color:'#00A0E9' },
+    '다음 달쯤...':     { icon:'🗓️', color:'#A39161' },
+    '기회가 되면':      { icon:'🌊', color:'#9FD9F6' },
+    '솔직히 모르겠음':  { icon:'🤷', color:'#5a7a9a' },
+    'AI가 대신 해줘':   { icon:'🤖', color:'#004098' },
+  };
+  const total = Object.values(dist).reduce((a,b)=>a+b,0) || 1;
+  const sorted = Object.entries(dist).sort((a,b)=>b[1]-a[1]);
+  const el = document.getElementById('timingChart').parentElement;
+  // canvas 대신 HTML 바 차트로 교체
+  const existingCanvas = document.getElementById('timingChart');
+  const wrap = document.createElement('div');
+  wrap.id = 'timingBars';
+  wrap.style.cssText = 'display:flex;flex-direction:column;gap:10px;padding:4px 0;';
+  existingCanvas.replaceWith(wrap);
+
+  sorted.forEach(([k, v]) => {
+    const meta = TIMING_META[k] || { icon:'⏰', color:'#0068B7' };
+    const pct  = (v / total * 100).toFixed(0);
+    const item = document.createElement('div');
+    item.style.cssText = 'display:flex;align-items:center;gap:10px;';
+    item.innerHTML = \`
+      <span style="font-size:18px;width:26px;text-align:center;flex-shrink:0">\${meta.icon}</span>
+      <span style="font-size:12px;font-weight:700;color:#1a2744;min-width:100px;flex-shrink:0">\${k}</span>
+      <div style="flex:1;height:20px;background:#e8f4fd;border-radius:10px;overflow:hidden;">
+        <div style="height:100%;width:0%;background:\${meta.color};border-radius:10px;transition:width 1s ease;"
+             data-w="\${pct}%"></div>
+      </div>
+      <span style="font-size:12px;font-weight:900;color:\${meta.color};min-width:42px;text-align:right">\${pct}% <small style="font-weight:400;color:#8E9BAE">(\${v}명)</small></span>
+    \`;
+    wrap.appendChild(item);
+  });
+  // 애니메이션
+  requestAnimationFrame(() => {
+    wrap.querySelectorAll('[data-w]').forEach(bar => {
+      bar.style.width = bar.getAttribute('data-w');
+    });
   });
 }
 
@@ -684,51 +713,87 @@ function renderCommentNetwork(comments) {
   const nodes = new vis.DataSet();
   const edges = new vis.DataSet();
 
-  // 중앙 노드
-  nodes.add({ id:'center', label:'오늘 강의', shape:'ellipse', color:{background:'#004098',border:'#0068B7'}, font:{color:'white',size:15,bold:true}, size:40 });
-
-  // 부서 노드
-  const depts = [...new Set(comments.map(c=>c.dept).filter(Boolean))];
-  depts.forEach((d,i) => {
-    nodes.add({ id:'dept_'+i, label:d.substring(0,6), shape:'diamond',
-      color:{background:DEPT_COLORS[d]||'#8E9BAE', border:'white'}, font:{color:'white',size:11,bold:true}, size:22 });
-    edges.add({ from:'center', to:'dept_'+i, color:{color:'rgba(0,104,183,0.3)'}, width:2, dashes:true });
+  // ── 중앙 노드 (크고 선명하게)
+  nodes.add({
+    id:'center', label:'🎣 오늘 강의', shape:'ellipse',
+    color:{background:'#004098', border:'#00A0E9', highlight:{background:'#0068B7',border:'#9FD9F6'}},
+    font:{color:'white', size:17, bold:true}, size:52,
+    shadow:{enabled:true, color:'rgba(0,64,152,0.4)', size:12, x:3, y:3}
   });
 
-  // 의견 노드
+  // ── 부서 노드 (다이아몬드, 부서명 2줄)
+  const depts = [...new Set(comments.map(c=>c.dept).filter(Boolean))];
+  depts.forEach((d,i) => {
+    const shortLabel = d.length > 5 ? d.substring(0,5)+'\n…' : d;
+    nodes.add({
+      id:'dept_'+i, label:shortLabel, shape:'diamond',
+      color:{background: DEPT_COLORS[d]||'#8E9BAE', border:'white',
+             highlight:{background:'#00A0E9',border:'white'}},
+      font:{color:'white', size:12, bold:true}, size:30,
+      shadow:{enabled:true, color:'rgba(0,0,0,0.2)', size:8, x:2, y:2}
+    });
+    edges.add({ from:'center', to:'dept_'+i,
+      color:{color:'rgba(0,104,183,0.5)', highlight:'#0068B7'},
+      width:2.5, dashes:[6,4],
+      smooth:{type:'curvedCW', roundness:0.2}
+    });
+  });
+
+  // ── 의견 노드 (말풍선 스타일, 전체 텍스트)
+  const BUBBLE_COLORS = ['#E3F2FD','#E8F5E9','#FFF8E1','#FCE4EC','#F3E5F5','#E0F7FA','#FBE9E7','#F9FBE7'];
+  const BUBBLE_BORDERS = ['#0068B7','#4CAF50','#FF9800','#F44336','#9C27B0','#00BCD4','#FF5722','#8BC34A'];
   comments.forEach((c,i) => {
     const deptIdx = depts.indexOf(c.dept);
-    const nodeId = 'comment_'+i;
-    nodes.add({ id:nodeId, label:c.text.substring(0,12), shape:'box',
-      color:{background:'#f0f7ff', border:DEPT_COLORS[c.dept]||'#9FD9F6', highlight:{background:'#dceefb',border:'#0068B7'}},
-      font:{size:11, color:'#1a2744'}, borderWidth:2, borderWidthSelected:3
+    const nodeId  = 'comment_'+i;
+    const bg  = BUBBLE_COLORS[i % BUBBLE_COLORS.length];
+    const brd = DEPT_COLORS[c.dept] || BUBBLE_BORDERS[i % BUBBLE_BORDERS.length];
+    nodes.add({
+      id:nodeId,
+      label: '"' + c.text + '"',
+      shape:'box',
+      color:{background:bg, border:brd, highlight:{background:'#dceefb',border:'#0068B7'}},
+      font:{size:13, color:'#1a2744', bold:false},
+      borderWidth:2.5, borderWidthSelected:4,
+      margin:10,
+      shadow:{enabled:true, color:'rgba(0,0,0,0.12)', size:6, x:2, y:2}
     });
-    if (deptIdx >= 0) {
-      edges.add({ from:'dept_'+deptIdx, to:nodeId, color:{color:'rgba(0,160,233,0.4)'}, width:1.5 });
-    } else {
-      edges.add({ from:'center', to:nodeId, color:{color:'rgba(0,0,0,0.15)'}, width:1 });
-    }
+    const srcId = deptIdx >= 0 ? 'dept_'+deptIdx : 'center';
+    edges.add({
+      from:srcId, to:nodeId,
+      color:{color: brd+'99', highlight: brd},
+      width:1.8,
+      smooth:{type:'dynamic'}
+    });
   });
 
   const options = {
-    physics:{ stabilization:{iterations:150}, barnesHut:{ gravitationalConstant:-3000, springLength:120 } },
-    interaction:{ hover:true, tooltipDelay:200 },
-    layout:{ improvedLayout:true },
-    edges:{ smooth:{ type:'dynamic' } },
+    physics:{
+      stabilization:{iterations:200, fit:true},
+      barnesHut:{ gravitationalConstant:-5000, springLength:160, springConstant:0.04, damping:0.15 }
+    },
+    interaction:{ hover:true, tooltipDelay:100, zoomView:true, dragView:true },
+    layout:{ improvedLayout:true, randomSeed:42 },
+    edges:{ smooth:{ type:'dynamic' }, arrows:{} },
+    nodes:{ chosen:true }
   };
 
-  new vis.Network(container, { nodes, edges }, options);
+  const network = new vis.Network(container, { nodes, edges }, options);
+  network.once('stabilized', () => { network.fit({ animation:{ duration:600, easingFunction:'easeInOutQuad' } }); });
 
-  // 한줄 의견 리스트
+  // ── 하단 의견 카드 리스트 (개선)
   const listEl = document.getElementById('commentList');
-  listEl.innerHTML = comments.map(c => `
-    <div class="timeline-item">
-      <span class="timeline-dept">${(c.dept||'기타').substring(0,4)}</span>
-      <div>
-        <div class="timeline-comment">오늘 강의는 나에게 "<strong>${c.text}</strong>" 이었다.</div>
-      </div>
-    </div>
-  `).join('');
+  listEl.innerHTML = comments.map((c,i) => {
+    const brd = DEPT_COLORS[c.dept] || BUBBLE_BORDERS[i % BUBBLE_BORDERS.length];
+    return '<div class="timeline-item" style="border-left:3px solid '+brd+';padding-left:12px;border-bottom:1px solid #f0f5fb;padding-bottom:10px;">'
+      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">'
+      + '<span style="font-size:11px;font-weight:700;color:white;background:'+brd+';border-radius:6px;padding:2px 8px;flex-shrink:0">'+(c.dept||'기타').substring(0,6)+'</span>'
+      + '<span style="font-size:11px;color:#8E9BAE;">익명</span>'
+      + '</div>'
+      + '<div style="font-size:14px;color:#1a2744;font-weight:500;line-height:1.5">'
+      + '오늘 강의는 나에게 <span style="color:'+brd+';font-weight:700;font-size:15px;">"'+c.text+'"</span> 이었다.'
+      + '</div>'
+      + '</div>';
+  }).join('');
 }
 
 // ── 부서별 적용 가능성 레이더 ─────────────────
