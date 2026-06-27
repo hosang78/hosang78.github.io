@@ -478,19 +478,23 @@ async function loadData() {
       redirect: 'follow',
     });
     const text = await res.text();
-    // GAS가 HTML 리다이렉트 응답을 줄 경우 JSON 부분만 추출
+    console.log('[결과페이지] GAS 응답 상태:', res.status, res.statusText);
+    console.log('[결과페이지] GAS 응답 앞부분:', text.substring(0, 200));
+    // JSON 부분 추출
     let jsonStr = text;
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) jsonStr = jsonMatch[0];
     data = JSON.parse(jsonStr);
+    console.log('[결과페이지] 파싱 성공, 응답자 수:', data.count);
     currentData = data;
     renderAll(data.summary || data);
     document.getElementById('lastUpdated').textContent = '마지막 업데이트: ' + new Date().toLocaleTimeString('ko-KR');
   } catch (e) {
-    console.error(e);
-    const dummyData = generateDummyData();
-    currentData = dummyData;
-    renderAll(dummyData.summary);
+    console.error('API 오류:', e);
+    // 오류 시 빈 데이터로 표시 (더미데이터 사용 안 함)
+    document.getElementById('totalCount').textContent = '오류';
+    document.getElementById('kpiTotal').textContent = '-';
+    document.getElementById('lastUpdated').textContent = '⚠️ 데이터 로드 실패 - 잠시 후 재시도';
   } finally {
     setTimeout(() => document.getElementById('loadingOverlay').classList.add('hide'), 600);
   }
@@ -731,7 +735,11 @@ function renderChanceByDept(rows) {
   const deptCnt    = {};
   rows.forEach(r => {
     const d = r['부서구분'] || r['department'] || '기타';
-    const v = parseFloat(r['Q6_업무적용가능성(%)'] || r['q6_chance'] || 0);
+    // 키 이름의 특수문자 대응: 여러 형태 시도
+    const v = parseFloat(
+      r['Q6_업무적용가능성(%)'] || r['Q6_업무적용가능성(%'] ||
+      r['q6_chance'] || r['Q6'] || 0
+    );
     if (!isNaN(v)) {
       deptChance[d] = (deptChance[d]||0) + v;
       deptCnt[d]    = (deptCnt[d]||0) + 1;
@@ -789,7 +797,9 @@ function renderWifi(rows) {
   destroyChart('wifiChart');
   const counts = {1:0,2:0,3:0,4:0,5:0};
   rows.forEach(r => {
-    const v = parseInt(r['Q9_신호수신강도'] || r['q9_signal'] || 0);
+    const v = parseInt(
+      r['Q9_신호수신강도'] || r['q9_signal'] || r['Q9'] || 0
+    );
     if (v >= 1 && v <= 5) counts[v]++;
   });
   charts.wifiChart = new Chart(document.getElementById('wifiChart'), {
