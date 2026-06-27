@@ -486,8 +486,11 @@ async function loadData() {
     if (jsonMatch) jsonStr = jsonMatch[0];
     data = JSON.parse(jsonStr);
     console.log('[결과페이지] 파싱 성공, 응답자 수:', data.count);
+    console.log('[결과페이지] rows 샘플:', data.rows && data.rows[0]);
     currentData = data;
-    renderAll(data.summary || data);
+    // summary에 rows 주입 (Q6 레이더, Q9 와이파이 등 개별 행 분석용)
+    const summaryWithRows = Object.assign({}, data.summary || data, { rows: data.rows || [] });
+    renderAll(summaryWithRows);
     document.getElementById('lastUpdated').textContent = '마지막 업데이트: ' + new Date().toLocaleTimeString('ko-KR');
   } catch (e) {
     console.error('API 오류:', e);
