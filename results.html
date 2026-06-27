@@ -473,8 +473,16 @@ async function loadData() {
   try {
     let data;
     // Google Apps Script에서 실제 데이터 조회
-      const res = await fetch(APPS_SCRIPT_URL + '?t=' + Date.now());
-      data = await res.json();
+    const res = await fetch(APPS_SCRIPT_URL + '?t=' + Date.now(), {
+      method: 'GET',
+      redirect: 'follow',
+    });
+    const text = await res.text();
+    // GAS가 HTML 리다이렉트 응답을 줄 경우 JSON 부분만 추출
+    let jsonStr = text;
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) jsonStr = jsonMatch[0];
+    data = JSON.parse(jsonStr);
     currentData = data;
     renderAll(data.summary || data);
     document.getElementById('lastUpdated').textContent = '마지막 업데이트: ' + new Date().toLocaleTimeString('ko-KR');
